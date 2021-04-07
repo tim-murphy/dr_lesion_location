@@ -53,7 +53,7 @@ def parseCoordsFile(filename, image_dir):
             if (index == 0):
                 continue
 
-            coords.append(CoordsData(image_dir + "/" + IMAGE_SUBDIR + "/" + row[0],
+            coords.append(CoordsData(os.path.join(image_dir, IMAGE_SUBDIR, row[0]),
                           (int(row[1]), int(row[2])),
                           (int(row[3]), int(row[4]))))
 
@@ -68,9 +68,14 @@ def printUsage():
 # @param image_data CoordsData object
 def scaleImage(image_data):
     orig_dist = abs(image_data.nerve_xy[0] - image_data.mac_xy[0])
+
+    if (orig_dist == 0):
+        print("ERROR: invalid tagging for image (ignoring): " + image_data.filename)
+        return None, None
+
     scaling_factor =  float(NERVE_MAC_DIST) / float(orig_dist)
 
-    print("Current distance: " + str(orig_dist) + " - scaling factor " + str(scaling_factor))
+    print(os.path.basename(image_data.filename) + " - scaling factor " + str(scaling_factor))
     new_nerve_xy = (int(float(image_data.nerve_xy[0]) * scaling_factor),
                     int(float(image_data.nerve_xy[1]) * scaling_factor))
 
@@ -119,6 +124,10 @@ if __name__ == '__main__':
         # make sure everything lines up.
         nerve_xy_scaled, scaling_factor = scaleImage(record)
 
+        if (nerve_xy_scaled == None or scaling_factor == None):
+            print("ERROR: ignoring file: " + record.filename)
+            continue
+
         # Load the lesion file(s)
         for lesion in LESION_TYPES:
             lesion_image_path = os.path.join(image_dir, LESION_SUBDIR, lesion, os.path.split(record.filename)[1])
@@ -148,13 +157,12 @@ if __name__ == '__main__':
     # normalised values.
     heatmap_image = np.zeros((2, NERVE_COORD * 2, NERVE_COORD * 2), dtype=np.uint8)
     for side in [RIGHT_EYE, LEFT_EYE]:
-        print(("Right", "Left")[side] + " eye")
+        print("Generating " + ("right", "left")[side] + " heatmap")
         largest_value = 1
         for x, vx in enumerate(heatmap_data[side]):
             for y, vy in enumerate(vx):
                 if (vy > largest_value):
                     largest_value = vy
-                    print("New largest: " + str(largest_value))
 
         heatmap_scale = 255.0 / float(largest_value)
         for x, vx in enumerate(heatmap_data[side]):
@@ -177,6 +185,7 @@ if __name__ == '__main__':
     ## TESTING ##
     stack = cv2.resize(stack, (1500, 750))
 
+    cv2.imwrite("heatmap.png", stack)
     cv2.imshow("heatmap", stack)
     cv2.waitKey(0)
     cv2.destroyAllWindows()

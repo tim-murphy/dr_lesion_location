@@ -2,11 +2,18 @@
 import wx
 import sys
 import os
+import csv
+
+# write outstr to the console and to the outfile
+def tee(outstr, outfile):
+    print(outstr)
+    print(outstr, file=open(outfile, "a"))
 
 class MyCanvas(wx.ScrolledWindow):
     # position of the optic nerve (from click) - None if not set
     onPos = None
     filepath = None
+    outfile = None
 
     def __init__(self, parent, id = -1, size = wx.DefaultSize, filepath = None):
         wx.ScrolledWindow.__init__(self, parent, id, (0, 0), size=size, style=wx.SUNKEN_BORDER)
@@ -35,7 +42,8 @@ class MyCanvas(wx.ScrolledWindow):
         if (self.onPos == None):
             self.onPos = pos
         else:
-            print(self.filepath, self.onPos.x, self.onPos.y, pos.x, pos.y, sep=',')
+            outstr = ','.join(map(str, [self.filepath, self.onPos.x, self.onPos.y, pos.x, pos.y]))
+            tee(outstr, self.outfile)
             self.onPos = None
 
     def OnPaint(self, event):
@@ -61,18 +69,53 @@ class MyFrame(wx.Frame):
         self.Layout()
 
 if __name__ == '__main__':
+    if (len(sys.argv) < 3):
+        print("Usage: " + sys.argv[0] + " <outfile> <image> [<image> ...]")
+        sys.exit(1)
+
     app = wx.App()
     app.SetOutputWindowAttributes(title='stdout')  
     wx.InitAllImageHandlers()
-    
+
+    # output file (append). This will also be read to see which images
+    # have already been done, and ignore those.
+    outfile = sys.argv[1]
+
+    # if the file exists we're going to append without a header, and not
+    # test images we've already done
+    addHeader = False
+    testedImages = list()
+    if (os.path.exists(outfile)):
+        with open(outfile) as csvfile:
+            coords_data = csv.reader(csvfile, delimiter=',')
+            for index, row in enumerate(coords_data):
+                # ignore the first row - header
+                if (index == 0):
+                    continue
+                testedImages.append(row[0])
+    else:
+        addHeader = True
+
     # data output header
-    print("file,onX,onY,macX,macY")
+    if (addHeader):
+        tee("file,onX,onY,macX,macY", outfile)
 
     for i, arg in enumerate(sys.argv):
-        # ignore the first argument
-        if (i == 0):
+        # ignore the first two arguments
+        if (i < 2):
             continue
+
+        # ignore if we've already tested this image
+        filebasename = os.path.basename(arg)
+        if (filebasename in testedImages):
+            print("INFO: image has already been tagged (ignoring): " + filebasename)
+            continue
+
         myframe = MyFrame(filepath=arg)
+        myframe.canvas.outfile = outfile
         myframe.Center()
         myframe.Show()
         app.MainLoop()
+        testedImages.append(filebasename)
+
+# EOF
