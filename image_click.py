@@ -41,6 +41,9 @@ class MyCanvas(wx.ScrolledWindow):
         pos = self.CalcUnscrolledPosition(event.GetPosition())
         if (self.onPos == None):
             self.onPos = pos
+        elif (self.onPos == pos):
+            print("WARN: double-click detected. Please click the regions again.")
+            self.onPos = None
         else:
             outstr = ','.join(map(str, [self.filepath, self.onPos.x, self.onPos.y, pos.x, pos.y]))
             tee(outstr, self.outfile)
@@ -92,7 +95,11 @@ if __name__ == '__main__':
                 # ignore the first row - header
                 if (index == 0):
                     continue
-                testedImages.append(row[0])
+
+                if (row[0] in testedImages):
+                    print("WARN: image found multiple times in outfile (ignoring): " + row[0])
+                else:
+                    testedImages.append(row[0])
     else:
         addHeader = True
 

@@ -182,10 +182,10 @@ if __name__ == '__main__':
 
     stack = np.hstack((heatmap_image[RIGHT_EYE], heatmap_image[LEFT_EYE]))
 
+    cv2.imwrite("heatmap.png", stack)
+
     ## TESTING ##
     stack = cv2.resize(stack, (1500, 750))
-
-    cv2.imwrite("heatmap.png", stack)
     cv2.imshow("heatmap", stack)
     cv2.waitKey(0)
     cv2.destroyAllWindows()
