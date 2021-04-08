@@ -255,11 +255,11 @@ if __name__ == '__main__':
     addText(trimmed[LEFT_EYE], (30,50), "B: Left Eye")
     addText(trimmed[BOTH_EYES], (30,50), "C: Combined")
 
+    # and we're done! put all the heatmaps in one big image and save it
     stack = np.hstack((trimmed[RIGHT_EYE], trimmed[LEFT_EYE], trimmed[BOTH_EYES]))
-
     cv2.imwrite("heatmap.png", stack)
 
-    ## TESTING ##
+    # for display purposes, shrink down the image to fit on (most) screens
     stack = cv2.resize(stack, (1500, 500))
     cv2.imshow("heatmap", stack)
     cv2.waitKey(0)
