@@ -9,6 +9,7 @@ import sys
 # constants
 RIGHT_EYE = 0
 LEFT_EYE = 1
+BOTH_EYES = 2
 
 # distance (in pixels) from the optic nerve to the macular in each scaled image
 NERVE_MAC_DIST = 250
@@ -103,10 +104,12 @@ def scaleImage(image_data):
     side = "(right)"
     if (rightOrLeft(image_data) == LEFT_EYE):
         side = "(left)"
+
     print(os.path.basename(image_data.filename),\
           side,\
           "- scaling factor", scaling_factor,\
           "- rotation", rotation)
+
     new_nerve_xy = (int(float(image_data.nerve_xy[0]) * scaling_factor),
                     int(float(image_data.nerve_xy[1]) * scaling_factor))
 
@@ -145,7 +148,7 @@ if __name__ == '__main__':
 
     # Initialise the data array (nerve at (NERVE_COORD,NERVE_COORD) which
     # is the middle of our matrix
-    heatmap_data = np.zeros((2, NERVE_COORD * 2, NERVE_COORD * 2), dtype=np.uint16)
+    heatmap_data = np.zeros((3, NERVE_COORD * 2, NERVE_COORD * 2), dtype=np.uint16)
 
     for record in coords_data:
         if (not os.path.exists(record.filename)):
@@ -191,32 +194,32 @@ if __name__ == '__main__':
             lesion_scaled = cv2.warpAffine(lesion_scaled, rot_matrix, img_dims)
 
             # ...and mark it in our heatmap matrix
-            x_from = NERVE_COORD - nerve_xy_scaled[1]
-            x_to = x_from + len(lesion_scaled)
-            y_from = NERVE_COORD - nerve_xy_scaled[0]
-            y_to = y_from + len(lesion_scaled[0])
+            y_from = NERVE_COORD - nerve_xy_scaled[1]
+            y_to = y_from + len(lesion_scaled)
+            x_from = NERVE_COORD - nerve_xy_scaled[0]
+            x_to = x_from + len(lesion_scaled[0])
 
             if (x_from < 0 or y_from < 0 or x_to > len(heatmap_data[side]) or y_to > len(heatmap_data[side][0])):
                 print("ERROR:", lesion, "mapping outside of bounds (ignoring):", os.path.basename(record.filename))
                 continue
 
-            heatmap_data[side][x_from:x_to, y_from:y_to] += lesion_scaled
+            heatmap_data[side][y_from:y_to, x_from:x_to] += lesion_scaled
+
+            # add data to our composite heatmap as well - represented as right side,
+            # so need to mirror left data.
+            if (side == LEFT_EYE):
+                lesion_scaled = np.fliplr(lesion_scaled)
+                x_from = NERVE_COORD - len(lesion_scaled[0]) + nerve_xy_scaled[0]
+                x_to = x_from + len(lesion_scaled[0])
+            heatmap_data[BOTH_EYES][y_from:y_to, x_from:x_to] += lesion_scaled
 
     # We now have a giant array with count values. Convert to a uint8 array with
     # normalised values.
-    heatmap_image = np.zeros((2, NERVE_COORD * 2, NERVE_COORD * 2), dtype=np.uint8)
-    for side in [RIGHT_EYE, LEFT_EYE]:
-        print("Generating " + ("right", "left")[side] + " heatmap")
-        largest_value = 1
-        for x, vx in enumerate(heatmap_data[side]):
-            for y, vy in enumerate(vx):
-                if (vy > largest_value):
-                    largest_value = vy
-
-        heatmap_scale = 255.0 / float(largest_value)
-        for x, vx in enumerate(heatmap_data[side]):
-            for y, vy in enumerate(vx):
-                heatmap_image[side][x][y] = int(float(vy) * heatmap_scale)
+    heatmap_image = np.zeros((3, NERVE_COORD * 2, NERVE_COORD * 2), dtype=np.uint8)
+    for side in [RIGHT_EYE, LEFT_EYE, BOTH_EYES]:
+        print("Generating " + ("right", "left", "composite")[side] + " heatmap")
+        heatmap_scale = 255.0 / float(max(1, heatmap_data[side].max()))
+        heatmap_image[side] = heatmap_data[side] * heatmap_scale
 
         # add the optic nerve visualisation
         cv2.circle(heatmap_image[side], (NERVE_COORD, NERVE_COORD), 45, (255), 2)
@@ -225,7 +228,7 @@ if __name__ == '__main__':
 
         # and the macula
         cv2.circle(heatmap_image[side],
-                   (NERVE_COORD - ((-1, 1)[side == RIGHT_EYE] * NERVE_MAC_DIST),
+                   (NERVE_COORD - ((1, -1, 1)[side] * NERVE_MAC_DIST),
                     NERVE_COORD + MAC_DROP),
                    25, (255), 2)
 
@@ -235,18 +238,20 @@ if __name__ == '__main__':
     x_len = orig_x_len - TRIM[NASAL] - TRIM[TEMPORAL]
     y_len = orig_y_len - TRIM[SUPERIOR] - TRIM[INFERIOR]
 
-    trimmed = np.zeros((2, x_len, y_len), dtype=np.uint8)
+    trimmed = np.zeros((3, x_len, y_len), dtype=np.uint8)
     trimmed[RIGHT_EYE] = heatmap_image[RIGHT_EYE][TRIM[SUPERIOR]:orig_x_len-TRIM[INFERIOR],\
                                                   TRIM[TEMPORAL]:orig_y_len-TRIM[NASAL]]
     trimmed[LEFT_EYE] = heatmap_image[LEFT_EYE][TRIM[SUPERIOR]:orig_x_len-TRIM[INFERIOR],\
                                                 TRIM[NASAL]:orig_y_len-TRIM[TEMPORAL]]
+    trimmed[BOTH_EYES] = heatmap_image[BOTH_EYES][TRIM[SUPERIOR]:orig_x_len-TRIM[INFERIOR],\
+                                                  TRIM[TEMPORAL]:orig_y_len-TRIM[NASAL]]
 
-    stack = np.hstack((trimmed[RIGHT_EYE], trimmed[LEFT_EYE]))
+    stack = np.hstack((trimmed[RIGHT_EYE], trimmed[LEFT_EYE], trimmed[BOTH_EYES]))
 
     cv2.imwrite("heatmap.png", stack)
 
     ## TESTING ##
-    stack = cv2.resize(stack, (1500, 750))
+    stack = cv2.resize(stack, (1500, 500))
     cv2.imshow("heatmap", stack)
     cv2.waitKey(0)
     cv2.destroyAllWindows()
