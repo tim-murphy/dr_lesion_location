@@ -19,8 +19,18 @@ MAC_DROP = int(float(NERVE_MAC_DIST) * 0.1)
 MAC_ANGLE = math.degrees(math.atan(float(MAC_DROP) / float(NERVE_MAC_DIST)))
 
 # the (x,y) coordinate of the optic nerve on the heatmap canvas
-# note: (NERVE_COORD, NERVE_COORD) is the coordinate to use
-NERVE_COORD = 750
+# note: (NERVE_COORD, NERVE_COORD) is the coordinate to use.
+# note: this canvas will be necessarily huge because the photos have large
+#       borders which cannot be stripped until after processing is finished
+NERVE_COORD = 1000
+
+# trim - the resulting image will have large black borders, so cut this
+# much off each side (measured in pixels)
+SUPERIOR=0
+NASAL=1
+INFERIOR=2
+TEMPORAL=3
+TRIM = [450, 600, 450, 300]
 
 # directory structure for images
 IMAGE_SUBDIR = "image"
@@ -167,6 +177,9 @@ if __name__ == '__main__':
             # load the image...
             lesion_orig = np.array(Image.open(lesion_image_path))
 
+            # ...convert to binary (for ease of processing)...
+            np.where(lesion_orig > 0, 1, 0)
+
             # ...scale it...
             lesion_scaled = cv2.resize(lesion_orig, None,
                                        fx=scaling_factor,
@@ -178,12 +191,16 @@ if __name__ == '__main__':
             lesion_scaled = cv2.warpAffine(lesion_scaled, rot_matrix, img_dims)
 
             # ...and mark it in our heatmap matrix
-            for x, vx in enumerate(lesion_scaled):
-                for y, vy in enumerate(vx):
-                    if (lesion_scaled[x][y] > 0):
-                        heatmap_data[side]\
-                                    [x + NERVE_COORD - nerve_xy_scaled[1]]\
-                                    [y + NERVE_COORD - nerve_xy_scaled[0]] += 1
+            x_from = NERVE_COORD - nerve_xy_scaled[1]
+            x_to = x_from + len(lesion_scaled)
+            y_from = NERVE_COORD - nerve_xy_scaled[0]
+            y_to = y_from + len(lesion_scaled[0])
+
+            if (x_from < 0 or y_from < 0 or x_to > len(heatmap_data[side]) or y_to > len(heatmap_data[side][0])):
+                print("ERROR:", lesion, "mapping outside of bounds (ignoring):", os.path.basename(record.filename))
+                continue
+
+            heatmap_data[side][x_from:x_to, y_from:y_to] += lesion_scaled
 
     # We now have a giant array with count values. Convert to a uint8 array with
     # normalised values.
@@ -212,7 +229,19 @@ if __name__ == '__main__':
                     NERVE_COORD + MAC_DROP),
                    25, (255), 2)
 
-    stack = np.hstack((heatmap_image[RIGHT_EYE], heatmap_image[LEFT_EYE]))
+    # trim the black edges from the images
+    orig_x_len = len(heatmap_image[0])
+    orig_y_len = len(heatmap_image[0][0])
+    x_len = orig_x_len - TRIM[NASAL] - TRIM[TEMPORAL]
+    y_len = orig_y_len - TRIM[SUPERIOR] - TRIM[INFERIOR]
+
+    trimmed = np.zeros((2, x_len, y_len), dtype=np.uint8)
+    trimmed[RIGHT_EYE] = heatmap_image[RIGHT_EYE][TRIM[SUPERIOR]:orig_x_len-TRIM[INFERIOR],\
+                                                  TRIM[TEMPORAL]:orig_y_len-TRIM[NASAL]]
+    trimmed[LEFT_EYE] = heatmap_image[LEFT_EYE][TRIM[SUPERIOR]:orig_x_len-TRIM[INFERIOR],\
+                                                TRIM[NASAL]:orig_y_len-TRIM[TEMPORAL]]
+
+    stack = np.hstack((trimmed[RIGHT_EYE], trimmed[LEFT_EYE]))
 
     cv2.imwrite("heatmap.png", stack)
 
