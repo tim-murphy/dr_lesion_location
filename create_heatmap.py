@@ -1,5 +1,6 @@
 import csv
 import cv2
+import math
 import numpy as np
 import os
 from PIL import Image
@@ -9,9 +10,13 @@ import sys
 RIGHT_EYE = 0
 LEFT_EYE = 1
 
-# horizontal distance (in pixels) from the optic nerve to
-# the macular in each scaled image
+# distance (in pixels) from the optic nerve to the macular in each scaled image
 NERVE_MAC_DIST = 250
+
+# Vertical distance (in pixels) from the optic nerve to the macular in each
+# scaled image. Used to rotate each image to the same orientation.
+MAC_DROP = int(float(NERVE_MAC_DIST) * 0.1)
+MAC_ANGLE = math.degrees(math.atan(float(MAC_DROP) / float(NERVE_MAC_DIST)))
 
 # the (x,y) coordinate of the optic nerve on the heatmap canvas
 # note: (NERVE_COORD, NERVE_COORD) is the coordinate to use
@@ -64,27 +69,45 @@ def printUsage():
 
 # Scale the image such that the distance between the nerve
 # and macula is NERVE_MAC_DIST. Return the scaled (x,y) position
-# of the nerve in the scaled image, as well as the scaling factor.
+# of the nerve in the scaled image, as well as the scaling factor
+# and rotation required.
 # @param image_data CoordsData object
 def scaleImage(image_data):
-    orig_dist = abs(image_data.nerve_xy[0] - image_data.mac_xy[0])
+    # Calculate the distace from the nerve to the mac. Ye Olde Pythagoras.
+    x = abs(image_data.nerve_xy[0] - image_data.mac_xy[0])
+    y = abs(image_data.nerve_xy[1] - image_data.mac_xy[1])
+    orig_dist = int(math.sqrt((x*x) + (y*y)))
 
     if (orig_dist == 0):
         print("ERROR: invalid tagging for image (ignoring): " + image_data.filename)
         return None, None
 
+    # Calculate the angle from the nerve to the mac
+    angle = math.degrees(math.atan(float(y) / float(x)))
+
+    # Image rotation required (in degrees)
+    rotation = MAC_ANGLE - angle
+
     scaling_factor =  float(NERVE_MAC_DIST) / float(orig_dist)
 
-    print(os.path.basename(image_data.filename) + " - scaling factor " + str(scaling_factor))
+    side = "(right)"
+    if (rightOrLeft(image_data) == LEFT_EYE):
+        side = "(left)"
+    print(os.path.basename(image_data.filename),\
+          side,\
+          "- scaling factor", scaling_factor,\
+          "- rotation", rotation)
     new_nerve_xy = (int(float(image_data.nerve_xy[0]) * scaling_factor),
                     int(float(image_data.nerve_xy[1]) * scaling_factor))
 
-    return new_nerve_xy, scaling_factor
+    return new_nerve_xy, scaling_factor, rotation
 
 # @param image_data CoordsData object
 def rightOrLeft(image_data):
-    return (RIGHT_EYE, LEFT_EYE)[image_data.nerve_xy[0] > image_data.mac_xy[0]]
-    
+    if (image_data.nerve_xy[0] > image_data.mac_xy[0]):
+        return RIGHT_EYE
+    return LEFT_EYE
+
 if __name__ == '__main__':
     if (len(sys.argv) != 3):
         printUsage()
@@ -119,10 +142,12 @@ if __name__ == '__main__':
             print("ERROR: image does not exist (ignoring): " + record.filename)
             continue
 
+        side = rightOrLeft(record)
+
         # Calculate the scaling factor and scaled nerve position. This determines
         # how to scale the lesion coordinates, and how far to translate them to
         # make sure everything lines up.
-        nerve_xy_scaled, scaling_factor = scaleImage(record)
+        nerve_xy_scaled, scaling_factor, rotation = scaleImage(record)
 
         if (nerve_xy_scaled == None or scaling_factor == None):
             print("ERROR: ignoring file: " + record.filename)
@@ -141,15 +166,22 @@ if __name__ == '__main__':
 
             # load the image...
             lesion_orig = np.array(Image.open(lesion_image_path))
+
             # ...scale it...
             lesion_scaled = cv2.resize(lesion_orig, None,
                                        fx=scaling_factor,
                                        fy=scaling_factor)
+
+            # ...rotate it...
+            rot_matrix = cv2.getRotationMatrix2D(nerve_xy_scaled, rotation, 1.0)
+            img_dims = (len(lesion_scaled[0]), len(lesion_scaled))
+            lesion_scaled = cv2.warpAffine(lesion_scaled, rot_matrix, img_dims)
+
             # ...and mark it in our heatmap matrix
             for x, vx in enumerate(lesion_scaled):
                 for y, vy in enumerate(vx):
                     if (lesion_scaled[x][y] > 0):
-                        heatmap_data[rightOrLeft(record)]\
+                        heatmap_data[side]\
                                     [x + NERVE_COORD - nerve_xy_scaled[1]]\
                                     [y + NERVE_COORD - nerve_xy_scaled[0]] += 1
 
@@ -176,8 +208,8 @@ if __name__ == '__main__':
 
         # and the macula
         cv2.circle(heatmap_image[side],
-                   (NERVE_COORD - ((-1, 1)[side] * NERVE_MAC_DIST),
-                    NERVE_COORD + int(NERVE_MAC_DIST * 0.1)),
+                   (NERVE_COORD - ((-1, 1)[side == RIGHT_EYE] * NERVE_MAC_DIST),
+                    NERVE_COORD + MAC_DROP),
                    25, (255), 2)
 
     stack = np.hstack((heatmap_image[RIGHT_EYE], heatmap_image[LEFT_EYE]))
