@@ -78,6 +78,10 @@ def parseCoordsFile(filename, image_dir):
 def printUsage():
     print("Usage: " + sys.argv[0] + " <coordinates_csv> <image_dir>")
 
+def addText(image, position, text):
+    cv2.putText(image, text, position, cv2.FONT_HERSHEY_DUPLEX, 1, (255,255,255), 2)
+    return image
+
 # Scale the image such that the distance between the nerve
 # and macula is NERVE_MAC_DIST. Return the scaled (x,y) position
 # of the nerve in the scaled image, as well as the scaling factor
@@ -245,6 +249,11 @@ if __name__ == '__main__':
                                                 TRIM[NASAL]:orig_y_len-TRIM[TEMPORAL]]
     trimmed[BOTH_EYES] = heatmap_image[BOTH_EYES][TRIM[SUPERIOR]:orig_x_len-TRIM[INFERIOR],\
                                                   TRIM[TEMPORAL]:orig_y_len-TRIM[NASAL]]
+
+    # add some descriptive text
+    addText(trimmed[RIGHT_EYE], (30,50), "A: Right Eye")
+    addText(trimmed[LEFT_EYE], (30,50), "B: Left Eye")
+    addText(trimmed[BOTH_EYES], (30,50), "C: Combined")
 
     stack = np.hstack((trimmed[RIGHT_EYE], trimmed[LEFT_EYE], trimmed[BOTH_EYES]))
 
