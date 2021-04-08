@@ -37,6 +37,12 @@ TRIM = [450, 600, 450, 300]
 IMAGE_SUBDIR = "image"
 LESION_SUBDIR = "label"
 LESION_TYPES = [ "EX", "HE", "MA", "SE" ]
+LESION_LABELS = { "EX": "Exudates",\
+                  "HE": "Haemorrhages",\
+                  "MA": "Microaneurysms",\
+                  "SE": "Cotton Wool Spots",\
+                  "ALL": "All Retinopathy" }
+COMPOSITE_IMAGE = len(LESION_LABELS) - 1
 
 class CoordsData:
     filename = None
@@ -152,7 +158,8 @@ if __name__ == '__main__':
 
     # Initialise the data array (nerve at (NERVE_COORD,NERVE_COORD) which
     # is the middle of our matrix
-    heatmap_data = np.zeros((3, NERVE_COORD * 2, NERVE_COORD * 2), dtype=np.uint16)
+    # stored as [side][lesion][x][y]
+    heatmap_data = np.zeros((3, len(LESION_LABELS) + 1, NERVE_COORD * 2, NERVE_COORD * 2), dtype=np.uint16)
 
     for record in coords_data:
         if (not os.path.exists(record.filename)):
@@ -171,7 +178,7 @@ if __name__ == '__main__':
             continue
 
         # Load the lesion file(s)
-        for lesion in LESION_TYPES:
+        for index, lesion in enumerate(LESION_TYPES):
             lesion_image_path = os.path.join(image_dir, LESION_SUBDIR, lesion, os.path.split(record.filename)[1])
 
             # lesion files are .tif, not .png, so we need to replace the extension
@@ -203,64 +210,82 @@ if __name__ == '__main__':
             x_from = NERVE_COORD - nerve_xy_scaled[0]
             x_to = x_from + len(lesion_scaled[0])
 
-            if (x_from < 0 or y_from < 0 or x_to > len(heatmap_data[side]) or y_to > len(heatmap_data[side][0])):
+            if (x_from < 0 or y_from < 0 or x_to > len(heatmap_data[side][index]) or y_to > len(heatmap_data[side][index][0])):
                 print("ERROR:", lesion, "mapping outside of bounds (ignoring):", os.path.basename(record.filename))
                 continue
 
-            heatmap_data[side][y_from:y_to, x_from:x_to] += lesion_scaled
+            heatmap_data[side][index][y_from:y_to, x_from:x_to] += lesion_scaled
+            heatmap_data[side][COMPOSITE_IMAGE][y_from:y_to, x_from:x_to] += lesion_scaled
 
-            # add data to our composite heatmap as well - represented as right side,
+            # add data to our composite heatmaps as well - represented as right side,
             # so need to mirror left data.
             if (side == LEFT_EYE):
                 lesion_scaled = np.fliplr(lesion_scaled)
                 x_from = NERVE_COORD - len(lesion_scaled[0]) + nerve_xy_scaled[0]
                 x_to = x_from + len(lesion_scaled[0])
-            heatmap_data[BOTH_EYES][y_from:y_to, x_from:x_to] += lesion_scaled
+            heatmap_data[BOTH_EYES][index][y_from:y_to, x_from:x_to] += lesion_scaled
+            heatmap_data[BOTH_EYES][COMPOSITE_IMAGE][y_from:y_to, x_from:x_to] += lesion_scaled
 
     # We now have a giant array with count values. Convert to a uint8 array with
     # normalised values.
-    heatmap_image = np.zeros((3, NERVE_COORD * 2, NERVE_COORD * 2), dtype=np.uint8)
+    heatmap_image = np.zeros((3, len(LESION_LABELS) + 1, NERVE_COORD * 2, NERVE_COORD * 2), dtype=np.uint8)
     for side in [RIGHT_EYE, LEFT_EYE, BOTH_EYES]:
-        print("Generating " + ("right", "left", "composite")[side] + " heatmap")
-        heatmap_scale = 255.0 / float(max(1, heatmap_data[side].max()))
-        heatmap_image[side] = heatmap_data[side] * heatmap_scale
+        for index, lesion in enumerate(LESION_LABELS):
+            print("Generating", ("right", "left", "composite")[side], LESION_LABELS[lesion], "heatmap")
+            heatmap_scale = 255.0 / float(max(1, heatmap_data[side][index].max()))
+            heatmap_image[side][index] = heatmap_data[side][index] * heatmap_scale
 
-        # add the optic nerve visualisation
-        cv2.circle(heatmap_image[side], (NERVE_COORD, NERVE_COORD), 45, (255), 2)
-        cv2.circle(heatmap_image[side], (NERVE_COORD, NERVE_COORD), 30, (255), 2)
-        cv2.circle(heatmap_image[side], (NERVE_COORD, NERVE_COORD), 15, (255), 2)
+            # add the optic nerve visualisation
+            cv2.circle(heatmap_image[side][index], (NERVE_COORD, NERVE_COORD), 45, (255), 2)
+            cv2.circle(heatmap_image[side][index], (NERVE_COORD, NERVE_COORD), 30, (255), 2)
+            cv2.circle(heatmap_image[side][index], (NERVE_COORD, NERVE_COORD), 15, (255), 2)
 
-        # and the macula
-        cv2.circle(heatmap_image[side],
-                   (NERVE_COORD - ((1, -1, 1)[side] * NERVE_MAC_DIST),
-                    NERVE_COORD + MAC_DROP),
-                   25, (255), 2)
+            # and the macula
+            cv2.circle(heatmap_image[side][index],
+                       (NERVE_COORD - ((1, -1, 1)[side] * NERVE_MAC_DIST),
+                        NERVE_COORD + MAC_DROP),
+                       25, (255), 2)
 
     # trim the black edges from the images
-    orig_x_len = len(heatmap_image[0])
-    orig_y_len = len(heatmap_image[0][0])
+    orig_x_len = len(heatmap_image[0][0])
+    orig_y_len = len(heatmap_image[0][0][0])
     x_len = orig_x_len - TRIM[NASAL] - TRIM[TEMPORAL]
     y_len = orig_y_len - TRIM[SUPERIOR] - TRIM[INFERIOR]
 
-    trimmed = np.zeros((3, x_len, y_len), dtype=np.uint8)
-    trimmed[RIGHT_EYE] = heatmap_image[RIGHT_EYE][TRIM[SUPERIOR]:orig_x_len-TRIM[INFERIOR],\
-                                                  TRIM[TEMPORAL]:orig_y_len-TRIM[NASAL]]
-    trimmed[LEFT_EYE] = heatmap_image[LEFT_EYE][TRIM[SUPERIOR]:orig_x_len-TRIM[INFERIOR],\
-                                                TRIM[NASAL]:orig_y_len-TRIM[TEMPORAL]]
-    trimmed[BOTH_EYES] = heatmap_image[BOTH_EYES][TRIM[SUPERIOR]:orig_x_len-TRIM[INFERIOR],\
-                                                  TRIM[TEMPORAL]:orig_y_len-TRIM[NASAL]]
+    trimmed = np.zeros((3, len(LESION_LABELS) + 1, x_len, y_len), dtype=np.uint8)
 
-    # add some descriptive text
-    addText(trimmed[RIGHT_EYE], (30,50), "A: Right Eye")
-    addText(trimmed[LEFT_EYE], (30,50), "B: Left Eye")
-    addText(trimmed[BOTH_EYES], (30,50), "C: Combined")
+    for i, l in enumerate(LESION_LABELS):
+        trimmed[RIGHT_EYE][i] = heatmap_image[RIGHT_EYE][i][TRIM[SUPERIOR]:orig_x_len-TRIM[INFERIOR],\
+                                                            TRIM[TEMPORAL]:orig_y_len-TRIM[NASAL]]
+        trimmed[LEFT_EYE][i] = heatmap_image[LEFT_EYE][i][TRIM[SUPERIOR]:orig_x_len-TRIM[INFERIOR],\
+                                                          TRIM[NASAL]:orig_y_len-TRIM[TEMPORAL]]
+        trimmed[BOTH_EYES][i] = heatmap_image[BOTH_EYES][i][TRIM[SUPERIOR]:orig_x_len-TRIM[INFERIOR],\
+                                                            TRIM[TEMPORAL]:orig_y_len-TRIM[NASAL]]
 
-    # and we're done! put all the heatmaps in one big image and save it
-    stack = np.hstack((trimmed[RIGHT_EYE], trimmed[LEFT_EYE], trimmed[BOTH_EYES]))
-    cv2.imwrite("heatmap.png", stack)
+        # add some descriptive text
+        addText(trimmed[RIGHT_EYE][i], (30,50), "Right Eye - " + LESION_LABELS[l])
+        addText(trimmed[LEFT_EYE][i], (30,50), "Left Eye - " + LESION_LABELS[l])
+        addText(trimmed[BOTH_EYES][i], (30,50), "Combined - " + LESION_LABELS[l])
+
+    # and we're done! put all the heatmaps together
+    stacks = []
+    for index, lesion in enumerate(LESION_LABELS):
+        s = np.hstack((trimmed[RIGHT_EYE][index],\
+                       trimmed[LEFT_EYE][index],\
+                       trimmed[BOTH_EYES][index]))
+        cv2.imwrite("heatmap_" + lesion + ".png", s)
+        stacks.append(s)
+
+    composite = None
+    for s in stacks:
+        if (composite is None):
+            composite = s
+        else:
+            composite = np.vstack((composite, s))
+    cv2.imwrite("heatmap.png", composite)
 
     # for display purposes, shrink down the image to fit on (most) screens
-    stack = cv2.resize(stack, (1500, 500))
+    stack = cv2.resize(stacks[COMPOSITE_IMAGE], (1500, 500))
     cv2.imshow("heatmap", stack)
     cv2.waitKey(0)
     cv2.destroyAllWindows()
