@@ -20,7 +20,7 @@ MAC_ANGLE = math.degrees(math.atan(float(MAC_DROP) / float(NERVE_MAC_DIST)))
 
 # the (x,y) coordinate of the optic nerve on the heatmap canvas
 # note: (NERVE_COORD, NERVE_COORD) is the coordinate to use
-NERVE_COORD = 1000
+NERVE_COORD = 750
 
 # directory structure for images
 IMAGE_SUBDIR = "image"
