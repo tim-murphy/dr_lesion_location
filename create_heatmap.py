@@ -211,7 +211,7 @@ if __name__ == '__main__':
             lesion_orig = np.array(Image.open(lesion_image_path))
 
             # ...convert to binary (for ease of processing)...
-            np.where(lesion_orig > 0, 1, 0)
+            lesion_orig = np.where(lesion_orig > 0, 1, 0).astype(np.uint8)
 
             # ...scale it...
             lesion_scaled = cv2.resize(lesion_orig, None,
@@ -253,7 +253,7 @@ if __name__ == '__main__':
     for side in [RIGHT_EYE, LEFT_EYE, BOTH_EYES]:
         for i, l in enumerate(LESION_LABELS):
             print("Generating", ("right", "left", "composite")[side], LESION_LABELS[l], "CSV file")
-            np.savetxt("lesion_count_" + SIDE_LABELS[side] + "_" + l + ".csv", heatmap_data[side][i].astype(int), fmt="%i", delimiter=",")
+            np.savetxt("lesion_count_" + SIDE_LABELS[side] + "_" + l + ".csv", trimmed[side][i], fmt="%i", delimiter=",")
 
     # with a README
     with open("README_csv.txt", "w") as f:
