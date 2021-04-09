@@ -10,6 +10,9 @@ import sys
 RIGHT_EYE = 0
 LEFT_EYE = 1
 BOTH_EYES = 2
+SIDE_LABELS = { RIGHT_EYE: "right",\
+                LEFT_EYE: "left",\
+                BOTH_EYES: "both" }
 
 # distance (in pixels) from the optic nerve to the macular in each scaled image
 NERVE_MAC_DIST = 250
@@ -79,6 +82,24 @@ def parseCoordsFile(filename, image_dir):
                           (int(row[3]), int(row[4]))))
 
     return coords
+
+def trimImageArrays(image):
+    orig_x_len = len(image[0][0])
+    orig_y_len = len(image[0][0][0])
+    x_len = orig_x_len - TRIM[NASAL] - TRIM[TEMPORAL]
+    y_len = orig_y_len - TRIM[SUPERIOR] - TRIM[INFERIOR]
+
+    trimmed = np.zeros((3, len(LESION_LABELS) + 1, x_len, y_len), dtype=np.uint8)
+
+    for i, l in enumerate(LESION_LABELS):
+        trimmed[RIGHT_EYE][i] = image[RIGHT_EYE][i][TRIM[SUPERIOR]:orig_x_len-TRIM[INFERIOR],\
+                                                    TRIM[TEMPORAL]:orig_y_len-TRIM[NASAL]]
+        trimmed[LEFT_EYE][i] = image[LEFT_EYE][i][TRIM[SUPERIOR]:orig_x_len-TRIM[INFERIOR],\
+                                                  TRIM[NASAL]:orig_y_len-TRIM[TEMPORAL]]
+        trimmed[BOTH_EYES][i] = image[BOTH_EYES][i][TRIM[SUPERIOR]:orig_x_len-TRIM[INFERIOR],\
+                                                    TRIM[TEMPORAL]:orig_y_len-TRIM[NASAL]]
+
+    return trimmed
 
 def printUsage():
     print("Usage: " + sys.argv[0] + " <coordinates_csv> <image_dir>")
@@ -226,6 +247,30 @@ if __name__ == '__main__':
 
     print("done")
 
+    # write the heatmap data to file
+    trimmed = trimImageArrays(heatmap_data)
+
+    for side in [RIGHT_EYE, LEFT_EYE, BOTH_EYES]:
+        for i, l in enumerate(LESION_LABELS):
+            print("Generating", ("right", "left", "composite")[side], LESION_LABELS[l], "CSV file")
+            np.savetxt("lesion_count_" + SIDE_LABELS[side] + "_" + l + ".csv", heatmap_data[side][i].astype(int), fmt="%i", delimiter=",")
+
+    # with a README
+    with open("README_csv.txt", "w") as f:
+        print("How to interpret the CSV files", file=f)
+        print("==============================", file=f)
+        print("", file=f)
+        print("Each file contains the number of lesions found at each pixel co-ordinate.", file=f)
+        print("Note that this uses the screen standard of (0, 0) located at the top left corner.", file=f)
+        print("", file=f)
+        print("For the right eye and composite images:", file=f)
+        print("  Optic nerve position = (", NERVE_COORD - TRIM[TEMPORAL], ",", NERVE_COORD - TRIM[SUPERIOR], ")", file=f)
+        print("  Macular position = (", NERVE_COORD - TRIM[TEMPORAL] - NERVE_MAC_DIST, ",", NERVE_COORD - TRIM[SUPERIOR] - MAC_DROP, ")", file=f)
+        print("", file=f)
+        print("For the left eye:", file=f)
+        print("  Optic nerve position = (", NERVE_COORD - TRIM[NASAL], ",", NERVE_COORD - TRIM[SUPERIOR], ")", file=f)
+        print("  Macular position = (", NERVE_COORD - TRIM[NASAL] + NERVE_MAC_DIST, ",", NERVE_COORD - TRIM[SUPERIOR] - MAC_DROP, ")", file=f)
+
     # We now have a giant array with count values. Convert to a uint8 array with
     # normalised values.
     heatmap_image = np.zeros((3, len(LESION_LABELS) + 1, NERVE_COORD * 2, NERVE_COORD * 2), dtype=np.uint8)
@@ -247,22 +292,10 @@ if __name__ == '__main__':
                        25, (255), 2)
 
     # trim the black edges from the images
-    orig_x_len = len(heatmap_image[0][0])
-    orig_y_len = len(heatmap_image[0][0][0])
-    x_len = orig_x_len - TRIM[NASAL] - TRIM[TEMPORAL]
-    y_len = orig_y_len - TRIM[SUPERIOR] - TRIM[INFERIOR]
+    trimmed = trimImageArrays(heatmap_image)
 
-    trimmed = np.zeros((3, len(LESION_LABELS) + 1, x_len, y_len), dtype=np.uint8)
-
+    # add some descriptive text
     for i, l in enumerate(LESION_LABELS):
-        trimmed[RIGHT_EYE][i] = heatmap_image[RIGHT_EYE][i][TRIM[SUPERIOR]:orig_x_len-TRIM[INFERIOR],\
-                                                            TRIM[TEMPORAL]:orig_y_len-TRIM[NASAL]]
-        trimmed[LEFT_EYE][i] = heatmap_image[LEFT_EYE][i][TRIM[SUPERIOR]:orig_x_len-TRIM[INFERIOR],\
-                                                          TRIM[NASAL]:orig_y_len-TRIM[TEMPORAL]]
-        trimmed[BOTH_EYES][i] = heatmap_image[BOTH_EYES][i][TRIM[SUPERIOR]:orig_x_len-TRIM[INFERIOR],\
-                                                            TRIM[TEMPORAL]:orig_y_len-TRIM[NASAL]]
-
-        # add some descriptive text
         addText(trimmed[RIGHT_EYE][i], (30,50), "Right Eye - " + LESION_LABELS[l])
         addText(trimmed[LEFT_EYE][i], (30,50), "Left Eye - " + LESION_LABELS[l])
         addText(trimmed[BOTH_EYES][i], (30,50), "Combined - " + LESION_LABELS[l])
