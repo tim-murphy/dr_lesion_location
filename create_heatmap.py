@@ -28,6 +28,9 @@ MAC_ANGLE = math.degrees(math.atan(float(MAC_DROP) / float(NERVE_MAC_DIST)))
 #       borders which cannot be stripped until after processing is finished
 NERVE_COORD = 1000
 
+DRAW_QUADS = False
+QUAD_BOX_SIZE = (200, 200)
+
 # trim - the resulting image will have large black borders, so cut this
 # much off each side (measured in pixels)
 SUPERIOR=0
@@ -286,10 +289,26 @@ if __name__ == '__main__':
             cv2.circle(heatmap_image[side][index], (NERVE_COORD, NERVE_COORD), 15, (255), 2)
 
             # and the macula
+            mac_coord = (NERVE_COORD - ((1, -1, 1)[side] * NERVE_MAC_DIST),
+                        NERVE_COORD + MAC_DROP)
             cv2.circle(heatmap_image[side][index],
-                       (NERVE_COORD - ((1, -1, 1)[side] * NERVE_MAC_DIST),
-                        NERVE_COORD + MAC_DROP),
+                       mac_coord,
                        25, (255), 2)
+
+            # also draw in the quads used for stats
+            if (DRAW_QUADS):
+                cv2.line(heatmap_image[side][index],
+                         (mac_coord[0] - QUAD_BOX_SIZE[0], mac_coord[1]),
+                         (mac_coord[0] + QUAD_BOX_SIZE[0], mac_coord[1]),
+                         255, 2)
+                cv2.line(heatmap_image[side][index],
+                         (mac_coord[0], mac_coord[1] - QUAD_BOX_SIZE[1]),
+                         (mac_coord[0], mac_coord[1] + QUAD_BOX_SIZE[1]),
+                         255, 2)
+                cv2.rectangle(heatmap_image[side][index],
+                              (mac_coord[0] - QUAD_BOX_SIZE[0], mac_coord[1] - QUAD_BOX_SIZE[1]),
+                              (mac_coord[0] + QUAD_BOX_SIZE[0], mac_coord[1] + QUAD_BOX_SIZE[1]),
+                              255, 2)
 
     # trim the black edges from the images
     trimmed = trimImageArrays(heatmap_image)
