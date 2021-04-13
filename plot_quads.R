@@ -50,6 +50,7 @@ process_lesion <- function(lesion, side = SIDE()$BOTH)
 
     pdf(paste("plots_", side, "_", lesion, ".pdf", sep=""))
 
+    print("Loading data from CSV")
     # load all of the raw data into a matrix
     raw_data <- NULL
     for (line in read.csv(csv_file, header=FALSE, sep=",", dec=".", strip.white=TRUE))
@@ -57,7 +58,7 @@ process_lesion <- function(lesion, side = SIDE()$BOTH)
         raw_data <- rbind(raw_data, matrix(line, nrow=1))
     }
 
-    # split the data into quadrants
+    print("Splitting into quadrants")
     # the macular is used as the origin
     mac_coords_right <- c(450, 525)
     mac_coords_left <- c(650, 525)
@@ -77,6 +78,7 @@ process_lesion <- function(lesion, side = SIDE()$BOTH)
     quad_it = raw_data[quads_min_x:mac_coords[1], (mac_coords[2]+1):quads_max_y]
     quad_in = raw_data[(mac_coords[1]+1):quads_max_x, (mac_coords[2]+1):quads_max_y]
 
+    print("Performing Kruskal-Wallis test")
     # Kruskal-Wallis test
     # first, put all data into a giant data frame
     col_names = c("Quad", "Count")
@@ -93,6 +95,7 @@ process_lesion <- function(lesion, side = SIDE()$BOTH)
     all_quads_frame = rbind(st_frame, sn_frame, it_frame, in_frame)
     tee_to_file(kruskal.test(Count ~ Quad, data=all_quads_frame), out_file)
 
+    print("Performing Dunn test")
     # follow up with a Dunn test to see which quads are different
     # method="bh" means we adjust p-values for multiple comparisons
     dt = dunnTest(Count ~ Quad, data=all_quads_frame, method="bh")
@@ -101,16 +104,23 @@ process_lesion <- function(lesion, side = SIDE()$BOTH)
     # use a nicer table to show differences. Same letters means no difference.
     tee_to_file(cldList(comparison=dt$res$Comparison, p.value=dt$res$P.adj, threshold=P), out_file)
 
+    print("Performing ANOVA")
     # ANOVA (even though the data is not normally distributed)
     anova = aov(Count ~ Quad, data=all_quads_frame)
     tee_to_file(summary(anova), out_file)
 
+    print("Performing TukeyHSD")
     # pairwise comparisons from ANOVA
     tee_to_file(TukeyHSD(anova), out_file)
 
+    print("Generating normalcy plots")
     # and some plots
     plot(anova, 1)
     plot(anova, 2)
+
+    # histograms by group
+    print("Generating histograms")
+    hist(Count ~ Quad, data=all_quads_frame)
 
     # boxplot each quadrant
     print("Generating boxplots")
@@ -142,6 +152,10 @@ process_lesion <- function(lesion, side = SIDE()$BOTH)
     pie(quad_sums, labels=paste(paste(boxplot_labels, round(quad_sums)), "%", sep=""))
 
     dev.off()
+
+    print("Dataset finished")
+    print("=-=-=-=-=-=-=-=-")
+    print("")
 }
 
 for (l in LESION())
