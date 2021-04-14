@@ -73,10 +73,24 @@ process_lesion <- function(lesion, side = SIDE()$BOTH)
     quads_min_y = mac_coords[2] - QUAD_SIZE_Y
     quads_max_y = mac_coords[2] + QUAD_SIZE_Y
 
-    quad_st = raw_data[quads_min_x:mac_coords[1], quads_min_y:mac_coords[2]]
-    quad_sn = raw_data[(mac_coords[1]+1):quads_max_x, quads_min_y:mac_coords[2]]
-    quad_it = raw_data[quads_min_x:mac_coords[1], (mac_coords[2]+1):quads_max_y]
-    quad_in = raw_data[(mac_coords[1]+1):quads_max_x, (mac_coords[2]+1):quads_max_y]
+    # temporal quads are on the left side for right eye and combined, and right
+    # side for left eye
+    quad_st = quad_sn = quad_it = quad_in = NULL
+
+    if (side == SIDE()$LEFT)
+    {
+        quad_sn = raw_data[quads_min_x:mac_coords[1], quads_min_y:mac_coords[2]]
+        quad_st = raw_data[(mac_coords[1]+1):quads_max_x, quads_min_y:mac_coords[2]]
+        quad_in = raw_data[quads_min_x:mac_coords[1], (mac_coords[2]+1):quads_max_y]
+        quad_it = raw_data[(mac_coords[1]+1):quads_max_x, (mac_coords[2]+1):quads_max_y]
+    }
+    else
+    {
+        quad_st = raw_data[quads_min_x:mac_coords[1], quads_min_y:mac_coords[2]]
+        quad_sn = raw_data[(mac_coords[1]+1):quads_max_x, quads_min_y:mac_coords[2]]
+        quad_it = raw_data[quads_min_x:mac_coords[1], (mac_coords[2]+1):quads_max_y]
+        quad_in = raw_data[(mac_coords[1]+1):quads_max_x, (mac_coords[2]+1):quads_max_y]
+    }
 
     print("Performing Kruskal-Wallis test")
     # Kruskal-Wallis test
