@@ -1,12 +1,16 @@
 # Split the raw pixel count data at the mac into quads and plot the data.
 
 library(FSA)
+library(raster)
 library(rcompanion)
 
 # globals
 P <- 0.05
 QUAD_SIZE_X <- 200
 QUAD_SIZE_Y <- QUAD_SIZE_X
+
+SCALED_SIZE_X <- 20
+SCALED_SIZE_Y <- SCALED_SIZE_X
 
 # approximating enumerations
 SIDE <- function()
@@ -21,6 +25,14 @@ LESION <- function()
          MICROANEURYSMS = "MA",
          COTTONWOOLSPOTS = "SE",
          ALL = "ALL")
+}
+
+scale_data <- function(d)
+{
+    factor = QUAD_SIZE_X / SCALED_SIZE_X
+    orig <- raster(d)
+    scaled <- aggregate(orig, fact=factor, fun=max)
+    return(as.matrix(scaled))
 }
 
 print_matrix_size <- function(m)
@@ -60,8 +72,8 @@ process_lesion <- function(lesion, side = SIDE()$BOTH)
 
     print("Splitting into quadrants")
     # the macular is used as the origin
-    mac_coords_right <- c(450, 525)
-    mac_coords_left <- c(650, 525)
+    mac_coords_right <- c(450, 575)
+    mac_coords_left <- c(650, 575)
     mac_coords <- mac_coords_right
     if (side == SIDE()$LEFT)
     {
@@ -79,25 +91,21 @@ process_lesion <- function(lesion, side = SIDE()$BOTH)
 
     if (side == SIDE()$LEFT)
     {
-        quad_sn = raw_data[quads_min_x:mac_coords[1], quads_min_y:mac_coords[2]]
-        quad_st = raw_data[(mac_coords[1]+1):quads_max_x, quads_min_y:mac_coords[2]]
-        quad_in = raw_data[quads_min_x:mac_coords[1], (mac_coords[2]+1):quads_max_y]
-        quad_it = raw_data[(mac_coords[1]+1):quads_max_x, (mac_coords[2]+1):quads_max_y]
+        quad_sn = scale_data(raw_data[quads_min_x:mac_coords[1], quads_min_y:mac_coords[2]])
+        quad_st = scale_data(raw_data[(mac_coords[1]+1):quads_max_x, quads_min_y:mac_coords[2]])
+        quad_in = scale_data(raw_data[quads_min_x:mac_coords[1], (mac_coords[2]+1):quads_max_y])
+        quad_it = scale_data(raw_data[(mac_coords[1]+1):quads_max_x, (mac_coords[2]+1):quads_max_y])
     }
     else
     {
-        quad_st = raw_data[quads_min_x:mac_coords[1], quads_min_y:mac_coords[2]]
-        quad_sn = raw_data[(mac_coords[1]+1):quads_max_x, quads_min_y:mac_coords[2]]
-        quad_it = raw_data[quads_min_x:mac_coords[1], (mac_coords[2]+1):quads_max_y]
-        quad_in = raw_data[(mac_coords[1]+1):quads_max_x, (mac_coords[2]+1):quads_max_y]
+        quad_st = scale_data(raw_data[quads_min_x:mac_coords[1], quads_min_y:mac_coords[2]])
+        quad_sn = scale_data(raw_data[(mac_coords[1]+1):quads_max_x, quads_min_y:mac_coords[2]])
+        quad_it = scale_data(raw_data[quads_min_x:mac_coords[1], (mac_coords[2]+1):quads_max_y])
+        quad_in = scale_data(raw_data[(mac_coords[1]+1):quads_max_x, (mac_coords[2]+1):quads_max_y])
     }
 
-    print("Performing Kruskal-Wallis test")
-    # Kruskal-Wallis test
-    # first, put all data into a giant data frame
+    # put all data into a data frames
     col_names = c("Quad", "Count")
-    quad_factors = factor(c("ST", "SN", "IT", "IN"))
-
     st_frame = data.frame("ST", c(quad_st), stringsAsFactors=TRUE)
     names(st_frame) = col_names
     sn_frame = data.frame("SN", c(quad_sn), stringsAsFactors=TRUE)
@@ -107,6 +115,15 @@ process_lesion <- function(lesion, side = SIDE()$BOTH)
     in_frame = data.frame("IN", c(quad_in), stringsAsFactors=TRUE)
     names(in_frame) = col_names
     all_quads_frame = rbind(st_frame, sn_frame, it_frame, in_frame)
+
+    print("Generating orig and scaled heatmaps")
+    orig_matrix_full = raw_data[quads_min_x:quads_max_x, quads_min_y:quads_max_y]
+    plot(raster(t(orig_matrix_full)), xlab="", xaxt="n", ylab="", yaxt="n", main="Before Aggregation")
+    plot(raster(scale_data(t(orig_matrix_full))), xlab="", xaxt="n", ylab="", yaxt="n", main="After Aggregation")
+    remove(orig_matrix_full)
+
+    print("Performing Kruskal-Wallis test")
+    # Kruskal-Wallis test
     tee_to_file(kruskal.test(Count ~ Quad, data=all_quads_frame), out_file)
 
     print("Performing Dunn test")
@@ -115,8 +132,16 @@ process_lesion <- function(lesion, side = SIDE()$BOTH)
     dt = dunnTest(Count ~ Quad, data=all_quads_frame, method="bh")
     tee_to_file(dt, out_file)
 
-    # use a nicer table to show differences. Same letters means no difference.
-    tee_to_file(cldList(comparison=dt$res$Comparison, p.value=dt$res$P.adj, threshold=P), out_file)
+    tryCatch(
+    {
+        # use a nicer table to show differences. Same letters means no difference.
+        tee_to_file(cldList(comparison=dt$res$Comparison, p.value=dt$res$P.adj, threshold=P), out_file)
+    },
+    error = function(err)
+    {
+        tee_to_file("Could not do Dunn test - is Kruskal significant?", out_file)
+        tee_to_file(err, out_file)
+    })
 
     print("Performing ANOVA")
     # ANOVA (even though the data is not normally distributed)

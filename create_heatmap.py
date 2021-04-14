@@ -268,11 +268,11 @@ if __name__ == '__main__':
         print("", file=f)
         print("For the right eye and composite images:", file=f)
         print("  Optic nerve position = (", NERVE_COORD - TRIM[TEMPORAL], ",", NERVE_COORD - TRIM[SUPERIOR], ")", file=f)
-        print("  Macular position = (", NERVE_COORD - TRIM[TEMPORAL] - NERVE_MAC_DIST, ",", NERVE_COORD - TRIM[SUPERIOR] - MAC_DROP, ")", file=f)
+        print("  Macular position = (", NERVE_COORD - TRIM[TEMPORAL] - NERVE_MAC_DIST, ",", NERVE_COORD - TRIM[SUPERIOR] + MAC_DROP, ")", file=f)
         print("", file=f)
         print("For the left eye:", file=f)
         print("  Optic nerve position = (", NERVE_COORD - TRIM[NASAL], ",", NERVE_COORD - TRIM[SUPERIOR], ")", file=f)
-        print("  Macular position = (", NERVE_COORD - TRIM[NASAL] + NERVE_MAC_DIST, ",", NERVE_COORD - TRIM[SUPERIOR] - MAC_DROP, ")", file=f)
+        print("  Macular position = (", NERVE_COORD - TRIM[NASAL] + NERVE_MAC_DIST, ",", NERVE_COORD - TRIM[SUPERIOR] + MAC_DROP, ")", file=f)
 
     # We now have a giant array with count values. Convert to a uint8 array with
     # normalised values.
