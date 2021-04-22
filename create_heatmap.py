@@ -3,7 +3,6 @@ import cv2
 import math
 import numpy as np
 import os
-from PIL import Image
 import sys
 
 # constants
@@ -51,11 +50,11 @@ COMPOSITE_IMAGE = len(LESION_LABELS) - 1
 
 # minimum pixel count to include in the data - used to intensify the heatmap
 THRESHOLD = True
-LESION_THRESHOLD = { "EX": 2,\
-                     "HE": 2,\
+LESION_THRESHOLD = { "EX": 5,\
+                     "HE": 3,\
                      "MA": 1,\
                      "SE": 2,\
-                     "ALL": 2 }
+                     "ALL": 10 }
 
 class CoordsData:
     filename = None
@@ -223,7 +222,7 @@ if __name__ == '__main__':
                 continue
 
             # load the image...
-            lesion_orig = np.array(Image.open(lesion_image_path))
+            lesion_orig = cv2.imread(lesion_image_path, 0)
 
             # ...convert to binary (for ease of processing)...
             lesion_orig = np.where(lesion_orig > 0, 1, 0).astype(np.uint8)
@@ -293,7 +292,10 @@ if __name__ == '__main__':
         for index, lesion in enumerate(LESION_LABELS):
             # first do some thresholding
             if THRESHOLD:
-                heatmap_data[side][index] = np.where(heatmap_data[side][index] < LESION_THRESHOLD[lesion], 0, heatmap_data[side][index])
+                # calculate the threshold. Doubled for the combined image.
+                threshold = LESION_THRESHOLD[lesion]
+                if (side == BOTH_EYES): threshold *= 2
+                heatmap_data[side][index] = np.where(heatmap_data[side][index] < threshold, 0, heatmap_data[side][index])
 
             print("Generating", ("right", "left", "composite")[side], LESION_LABELS[lesion], "heatmap...", end='')
             heatmap_scale = 255.0 / float(max(1, heatmap_data[side][index].max()))
