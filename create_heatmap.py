@@ -13,6 +13,13 @@ SIDE_LABELS = { RIGHT_EYE: "right",\
                 LEFT_EYE: "left",\
                 BOTH_EYES: "both" }
 
+# set to True to create a CSV file after every image processed. Useful for
+# creating animations and stuff.
+SAVE_INTERMEDIATE_DATA = True
+INTERMEDIATE_DIR = "int_data"
+if SAVE_INTERMEDIATE_DATA and not os.path.exists(INTERMEDIATE_DIR):
+    os.makedirs(INTERMEDIATE_DIR)
+
 # distance (in pixels) from the optic nerve to the macular in each scaled image
 NERVE_MAC_DIST = 250
 
@@ -187,7 +194,7 @@ if __name__ == '__main__':
     heatmap_data = np.zeros((3, len(LESION_LABELS) + 1, NERVE_COORD * 2, NERVE_COORD * 2), dtype=np.uint16)
 
     print("Extracting lesion data", end='', flush=True)
-    for record in coords_data:
+    for r, record in enumerate(coords_data):
         if (not os.path.exists(record.filename)):
             print("ERROR: image does not exist (ignoring): " + record.filename)
             continue
@@ -258,6 +265,14 @@ if __name__ == '__main__':
                 x_to = x_from + len(lesion_scaled[0])
             heatmap_data[BOTH_EYES][index][y_from:y_to, x_from:x_to] += lesion_scaled
             heatmap_data[BOTH_EYES][COMPOSITE_IMAGE][y_from:y_to, x_from:x_to] += lesion_scaled
+
+            # if we are saving progress for each image, do that here
+            if SAVE_INTERMEDIATE_DATA:
+                frame_number = f'{r:04}'
+                trimmed = trimImageArrays(heatmap_data)
+                for i, l in enumerate(LESION_LABELS):
+                    fname = os.path.join(INTERMEDIATE_DIR, "lesion_count_" + SIDE_LABELS[BOTH_EYES] + "_" + l + out_suffix + "_" + frame_number + ".csv")
+                    np.savetxt(fname, trimmed[BOTH_EYES][i], fmt="%i", delimiter=",")
 
     print("done")
 

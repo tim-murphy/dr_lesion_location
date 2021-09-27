@@ -11,4 +11,3 @@ For the right eye and composite images:
 For the left eye:
   Optic nerve position = ( 400 , 550 )
   Macular position = ( 650 , 575 )
-
