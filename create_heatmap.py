@@ -15,7 +15,7 @@ SIDE_LABELS = { RIGHT_EYE: "right",\
 
 # set to True to create a CSV file after every image processed. Useful for
 # creating animations and stuff.
-SAVE_INTERMEDIATE_DATA = True
+SAVE_INTERMEDIATE_DATA = False
 INTERMEDIATE_DIR = "int_data"
 if SAVE_INTERMEDIATE_DATA and not os.path.exists(INTERMEDIATE_DIR):
     os.makedirs(INTERMEDIATE_DIR)
@@ -52,6 +52,10 @@ LESION_LABELS = { "EX": "Exudates",\
                   "HE": "Haemorrhages",\
                   "MA": "Microaneurysms",\
                   "SE": "Cotton Wool Spots",\
+                  "IRMA": "Intraretinal Microvascular Abnormalities",\
+                  "NVD": "New Vessels at the Disc",\
+                  "NVE": "New Vessels Elsewhere",\
+                  "VB": "Venous Beading",\
                   "ALL": "All Retinopathy" }
 COMPOSITE_IMAGE = len(LESION_LABELS) - 1
 
@@ -61,6 +65,10 @@ LESION_THRESHOLD = { "EX": 5,\
                      "HE": 3,\
                      "MA": 1,\
                      "SE": 2,\
+                     "IRMA": 1,\
+                     "NVD": 1,\
+                     "NVE": 1,\
+                     "VB": 1,\
                      "ALL": 10 }
 
 class CoordsData:
