@@ -52,15 +52,15 @@ LESION_LABELS = { "EX": "Exudates",\
                   "HE": "Haemorrhages",\
                   "MA": "Microaneurysms",\
                   "SE": "Cotton Wool Spots",\
-                  "IRMA": "Intraretinal Microvascular Abnormalities",\
-                  "NVD": "New Vessels at the Disc",\
-                  "NVE": "New Vessels Elsewhere",\
-                  "VB": "Venous Beading",\
+                  # "IRMA": "Intraretinal Microvascular Abnormalities",\
+                  # "NVD": "New Vessels at the Disc",\
+                  # "NVE": "New Vessels Elsewhere",\
+                  # "VB": "Venous Beading",\
                   "ALL": "All Retinopathy" }
 COMPOSITE_IMAGE = len(LESION_LABELS) - 1
 
 # minimum pixel count to include in the data - used to intensify the heatmap
-THRESHOLD = True
+THRESHOLD = False
 LESION_THRESHOLD = { "EX": 5,\
                      "HE": 3,\
                      "MA": 1,\
@@ -153,6 +153,10 @@ def scaleImage(image_data):
 
     # Image rotation required (in degrees)
     rotation = MAC_ANGLE - angle
+
+    # left eyes rotate the opposite direction
+    if rightOrLeft(image_data) == LEFT_EYE:
+        rotation = angle - MAC_ANGLE
 
     scaling_factor =  float(NERVE_MAC_DIST) / float(orig_dist)
 
