@@ -55,7 +55,7 @@ LESION_LABELS = { "EX": "Exudates",\
                   # "IRMA": "Intraretinal Microvascular Abnormalities",\
                   # "NVD": "New Vessels at the Disc",\
                   # "NVE": "New Vessels Elsewhere",\
-                  # "VB": "Venous Beading",\
+                  "VB": "Venous Beading",\
                   "ALL": "All Retinopathy" }
 COMPOSITE_IMAGE = len(LESION_LABELS) - 1
 
