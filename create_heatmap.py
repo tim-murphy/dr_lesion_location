@@ -13,6 +13,8 @@ SIDE_LABELS = { RIGHT_EYE: "right",\
                 LEFT_EYE: "left",\
                 BOTH_EYES: "both" }
 
+PREVIEW = False
+
 # set to True to create a CSV file after every image processed. Useful for
 # creating animations and stuff.
 SAVE_INTERMEDIATE_DATA = False
@@ -52,9 +54,9 @@ LESION_LABELS = { "EX": "Exudates",\
                   "HE": "Haemorrhages",\
                   "MA": "Microaneurysms",\
                   "SE": "Cotton Wool Spots",\
-                  # "IRMA": "Intraretinal Microvascular Abnormalities",\
-                  # "NVD": "New Vessels at the Disc",\
-                  # "NVE": "New Vessels Elsewhere",\
+                  "IRMA": "Intraretinal Microvascular Abnormalities",\
+                  "NVD": "New Vessels at the Disc",\
+                  "NVE": "New Vessels Elsewhere",\
                   "VB": "Venous Beading",\
                   "ALL": "All Retinopathy" }
 COMPOSITE_IMAGE = len(LESION_LABELS) - 1
@@ -114,7 +116,7 @@ def trimImageArrays(image):
     x_len = orig_x_len - TRIM[NASAL] - TRIM[TEMPORAL]
     y_len = orig_y_len - TRIM[SUPERIOR] - TRIM[INFERIOR]
 
-    trimmed = np.zeros((3, len(LESION_LABELS) + 1, x_len, y_len), dtype=np.uint8)
+    trimmed = np.zeros((3, len(LESION_LABELS) + 1, x_len, y_len), dtype=np.uint32)
 
     for i, l in enumerate(LESION_LABELS):
         trimmed[RIGHT_EYE][i] = image[RIGHT_EYE][i][TRIM[SUPERIOR]:orig_x_len-TRIM[INFERIOR],\
@@ -124,10 +126,17 @@ def trimImageArrays(image):
         trimmed[BOTH_EYES][i] = image[BOTH_EYES][i][TRIM[SUPERIOR]:orig_x_len-TRIM[INFERIOR],\
                                                     TRIM[TEMPORAL]:orig_y_len-TRIM[NASAL]]
 
+        # scale
+        for eye in (RIGHT_EYE, LEFT_EYE, BOTH_EYES):
+            heatmap_scale = 255.0 / float(max(1, trimmed[eye][i].max()))
+            trimmed[eye][i] = trimmed[eye][i] * heatmap_scale
+
+    return trimmed.astype('uint8')
+
     return trimmed
 
 def printUsage():
-    print("Usage: " + sys.argv[0] + " <coordinates_csv> <image_dir> [<outfile_suffix>]")
+    print("Usage: " + sys.argv[0] + " <coordinates_csv> <image_dir> [<outdir=heatmaps> [<outfile_suffix>]]")
 
 def addText(image, position, text):
     cv2.putText(image, text, position, cv2.FONT_HERSHEY_DUPLEX, 1, (255,255,255), 2)
@@ -188,9 +197,14 @@ if __name__ == '__main__':
         print("ERROR: image_dir path \"" + image_dir + "\" does not exist")
         cli_args_valid = False
 
+    outdir = "heatmaps"
+    if len(sys.argv) > 3:
+        outdir = sys.argv[3]
+    os.makedirs(outdir, exist_ok=True)
+
     out_suffix = ""
-    if (len(sys.argv) == 4):
-        out_suffix = "_" + sys.argv[3]
+    if len(sys.argv) > 4:
+        out_suffix = "_" + sys.argv[4]
 
     if (not cli_args_valid):
         sys.exit(1)
@@ -283,7 +297,7 @@ if __name__ == '__main__':
                 frame_number = f'{r:04}'
                 trimmed = trimImageArrays(heatmap_data)
                 for i, l in enumerate(LESION_LABELS):
-                    fname = os.path.join(INTERMEDIATE_DIR, "lesion_count_" + SIDE_LABELS[BOTH_EYES] + "_" + l + out_suffix + "_" + frame_number + ".csv")
+                    fname = os.path.join(outdir, INTERMEDIATE_DIR, "lesion_count_" + SIDE_LABELS[BOTH_EYES] + "_" + l + out_suffix + "_" + frame_number + ".csv")
                     np.savetxt(fname, trimmed[BOTH_EYES][i], fmt="%i", delimiter=",")
 
     print("done")
@@ -294,7 +308,7 @@ if __name__ == '__main__':
     for side in [RIGHT_EYE, LEFT_EYE, BOTH_EYES]:
         for i, l in enumerate(LESION_LABELS):
             print("Generating", ("right", "left", "composite")[side], LESION_LABELS[l], "CSV file")
-            np.savetxt("lesion_count_" + SIDE_LABELS[side] + "_" + l + out_suffix + ".csv", trimmed[side][i], fmt="%i", delimiter=",")
+            np.savetxt(os.path.join(outdir, "lesion_count_" + SIDE_LABELS[side] + "_" + l + out_suffix + ".csv"), trimmed[side][i], fmt="%i", delimiter=",")
 
     # with a README
     with open("README_csv.txt", "w") as f:
@@ -372,7 +386,7 @@ if __name__ == '__main__':
         s = np.hstack((trimmed[RIGHT_EYE][index],\
                        trimmed[LEFT_EYE][index],\
                        trimmed[BOTH_EYES][index]))
-        cv2.imwrite("heatmap_" + lesion + out_suffix + ".png", s)
+        cv2.imwrite(os.path.join(outdir, "heatmap_" + lesion + out_suffix + ".png"), s)
         stacks.append(s)
 
     composite = None
@@ -381,12 +395,13 @@ if __name__ == '__main__':
             composite = s
         else:
             composite = np.vstack((composite, s))
-    cv2.imwrite("heatmap" + out_suffix + ".png", composite)
+    cv2.imwrite(os.path.join(outdir, "heatmap" + out_suffix + ".png"), composite)
 
-    # for display purposes, shrink down the image to fit on (most) screens
-    stack = cv2.resize(stacks[COMPOSITE_IMAGE], (1500, 500))
-    cv2.imshow("heatmap", stack)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
+    if PREVIEW:
+        # for display purposes, shrink down the image to fit on (most) screens
+        stack = cv2.resize(stacks[COMPOSITE_IMAGE], (1500, 500))
+        cv2.imshow("heatmap", stack)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
 
 # EOF
