@@ -54,7 +54,9 @@ LESION_LABELS = { "EX": "Exudates",\
                   "HE": "Haemorrhages",\
                   "MA": "Microaneurysms",\
                   "SE": "Cotton Wool Spots",\
+                  "IRH": "Intraretinal Haemorrhages",\
                   "IRMA": "Intraretinal Microvascular Abnormalities",\
+                  "NV": "Neovascularisation",\
                   "NVD": "New Vessels at the Disc",\
                   "NVE": "New Vessels Elsewhere",\
                   "VB": "Venous Beading",\
@@ -127,11 +129,11 @@ def trimImageArrays(image):
                                                     TRIM[TEMPORAL]:orig_y_len-TRIM[NASAL]]
 
         # scale
-        for eye in (RIGHT_EYE, LEFT_EYE, BOTH_EYES):
-            heatmap_scale = 255.0 / float(max(1, trimmed[eye][i].max()))
-            trimmed[eye][i] = trimmed[eye][i] * heatmap_scale
+        # for eye in (RIGHT_EYE, LEFT_EYE, BOTH_EYES):
+            # heatmap_scale = 255.0 / float(max(1, trimmed[eye][i].max()))
+            # trimmed[eye][i] = trimmed[eye][i] * heatmap_scale
 
-    return trimmed.astype('uint8')
+    # return trimmed.astype('uint8')
 
     return trimmed
 
