@@ -12,7 +12,7 @@ import os
 import shutil
 import sys
 
-LESION_DIRS = ["EX", "HE", "MA", "SE", "IRMA", "NVE", "NVD", "VB"]
+LESION_DIRS = ["EX", "IRH", "MA", "SE", "IRMA", "NV", "VB"]
 
 # take our dataset and split it into four subsets based on grading
 if __name__ == '__main__':

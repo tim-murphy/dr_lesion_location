@@ -13,6 +13,7 @@ SIDE_LABELS = { RIGHT_EYE: "right",\
                 LEFT_EYE: "left",\
                 BOTH_EYES: "both" }
 
+ADD_LABELS = False
 PREVIEW = False
 
 # set to True to create a CSV file after every image processed. Useful for
@@ -377,10 +378,11 @@ if __name__ == '__main__':
     trimmed = trimImageArrays(heatmap_image)
 
     # add some descriptive text
-    for i, l in enumerate(LESION_LABELS):
-        addText(trimmed[RIGHT_EYE][i], (30,50), "Right Eye - " + LESION_LABELS[l])
-        addText(trimmed[LEFT_EYE][i], (30,50), "Left Eye - " + LESION_LABELS[l])
-        addText(trimmed[BOTH_EYES][i], (30,50), "Combined - " + LESION_LABELS[l])
+    if ADD_LABELS:
+        for i, l in enumerate(LESION_LABELS):
+            addText(trimmed[RIGHT_EYE][i], (30,50), "Right Eye - " + LESION_LABELS[l])
+            addText(trimmed[LEFT_EYE][i], (30,50), "Left Eye - " + LESION_LABELS[l])
+            addText(trimmed[BOTH_EYES][i], (30,50), "Combined - " + LESION_LABELS[l])
 
     # and we're done! put all the heatmaps together
     stacks = []
